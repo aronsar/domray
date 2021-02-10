@@ -12,24 +12,25 @@ class SupplyPile(object):
         return str(self.card)
 
 
+BasicPiles = {
+    "Curse": SupplyPile(Curse, 10),
+    "Estate": SupplyPile(Estate, 8),
+    "Duchy": SupplyPile(Duchy, 8),
+    "Province": SupplyPile(Province, 8),
+    "Copper": SupplyPile(Copper, 46),
+    "Silver": SupplyPile(Silver, 30),
+    "Gold": SupplyPile(Gold, 16),
+}
+
 def choose_supply_from_kingdoms(kingdoms):
     total_piles = {}
     for kingdom_piles in kingdoms:
         total_piles.update(kingdom_piles)
 
     keys = total_piles.keys()
-
     supply_keys = random.sample(keys, 10)
-
-    supply_piles = {
-        "Curse": SupplyPile(Curse, 10),
-        "Estate": SupplyPile(Estate, 8),
-        "Duchy": SupplyPile(Duchy, 8),
-        "Province": SupplyPile(Province, 8),
-        "Copper": SupplyPile(Copper, 46),
-        "Silver": SupplyPile(Silver, 30),
-        "Gold": SupplyPile(Gold, 16),
-    }
+    
+    supply_piles = {k:v for k,v in BasicPiles.items()}
 
     for key in supply_keys:
         supply_piles[key] = total_piles[key]
