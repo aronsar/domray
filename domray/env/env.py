@@ -1,15 +1,20 @@
 import numpy as np
 from collections import Counter
 from ray import rllib
+import gym
+from gym.spaces import Box, Discrete
 
 import domrl.engine.state as st
 import domrl.engine.state_view as stv
-import decision as dec
+import domrl.engine.decision as dec
 from domrl.engine.supply import BasicPiles
 from domrl.engine.cards.base import BaseKingdom
 # TODO: find_card_in_decision should be put in a utility.py file or something since it is shared across multiple agents
 from domrl.agents.provincial_agent import find_card_in_decision
-class DominionEnv(rllib.MultiAgentEnv):
+
+
+
+class DominionEnv(gym.Env):
     ''' Currently, I reimplement running games of dominion, but it would be
     nice if I didn't have to. I don't like to copy code.
     '''
@@ -17,6 +22,10 @@ class DominionEnv(rllib.MultiAgentEnv):
     def __init__(self, config):
         self.config = config
         self.kingdom_and_basic_cards = sorted(BaseKingdom.keys()) + sorted(BasicPiles.keys())
+        self.observation_space = Box(low=0.0, high=55.0, shape=(100,), dtype=np.float32)
+        self.action_space = Discrete(len(self.kingdom_and_basic_cards) + 1)
+        self.reward_range = (-1.0, 1.0)
+
 
     def _generate_state_rep(self):
         ''' Very simple state representation; not scalable to multiple players.
@@ -58,15 +67,18 @@ class DominionEnv(rllib.MultiAgentEnv):
         info = state_view
         return np.array(obs), info
 
-    def _run_until_next_buy(self, action_dict):
+    def _run_until_next_buy(self, action):
         # TODO: action cards that gain you stuff don't work yet
-        if action_dict:
+        if action:
             # NOTE: we assume the action is an integer that indexes into
             # self.kingdom_and_basic_cards
             player = self.state.current_player
             decision = BuyPhaseDecision(self.state, player)
-            card_name = self.kingdom_and_basic_cards[action_dict['card_idx']] # 'card_idx' must index into self.kingdom_and_basic_cards
-            idx = find_card_in_decision(decision, card_name)
+            if action == len(self.kingdom_and_basic_cards):
+                idx = 0
+            else:
+                card_name = self.kingdom_and_basic_cards[action]
+                idx = find_card_in_decision(decision, card_name)
             decision.moves[idx].do(self.state)
 
         while not self.state.is_game_done():
@@ -95,11 +107,11 @@ class DominionEnv(rllib.MultiAgentEnv):
                                   verbose=config['verbose'])
         self._run_until_next_buy(action_dict=None)
         obs, _ = self._generate_state_rep()
-        return obs
+        return [obs]
 
-    def step(self, action_dict):
+    def step(self, action):
         # NOTE: for now, we are guaranteed to be in the buy phase (or gain action)
-        self._run_until_next_buy(action_dict)
+        self._run_until_next_buy(action)
         obs, info = self._generate_state_rep()
         
         done = self.state.is_game_done()
@@ -116,13 +128,16 @@ class DominionEnv(rllib.MultiAgentEnv):
         else:
             reward = 0.0
 
-        return obs, reward, done, info
+        return [obs], reward, done, info
 
         '''
         # I guess it would be nice if there was some sort of callback mechanic
         # so I didn't have to rewrite benzyx's code. So that when a buy phase
         # decision needed to be made, the game would block and send the [obs,
         # reward, done, info] information to this point right here
+
+        NOTE: there is, use rllib.env.ExternalEnv
+
         '''
 
         
