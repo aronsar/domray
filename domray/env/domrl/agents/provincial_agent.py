@@ -70,9 +70,8 @@ def Sort_List_Of_Tuples(tup):
 
 # helper to check if a card is in their hand
 def hand_contains(state_view, card_name):
-    for card in state_view.player.hand:
-        if card.name == card_name:
-            return True
+    if card_name in state_view.player.hand:
+        return True
     return False
 ###################### END HELPER FUNCTIONS ######################
 
@@ -97,21 +96,27 @@ def provincial_treasure_phase(decision):
     return [len(decision.moves) - 1] # defaults to play all treasures
 
 # provincial action phase strategy
-def provincial_action_phase(decision):
+def provincial_action_phase(state_view, decision):
     # no actions in hand
     if len(decision.moves) == 1:
         return [0]
 
-    # rank cards
-    cards_ordered = []
-    for i in range(1, len(decision.moves)):
-        move = decision.moves[i]
-        if hasattr(move, 'card') and move.card.name == "Moneylender" and hand_contains("Copper"):
-            cards_ordered.append((i, card_priority[move.card.name]))
-        elif hasattr(move, 'card'):
-            cards_ordered.append((i, card_priority[move.card.name]))
+    playworthy_actions = []
+    for i, move in enumerate(decision.moves):
+        if isinstance(move, EndActionPhase):
+            continue
+        try:
+            if move.card.name == "Moneylender" and not hand_contains(state_view, "Copper"):
+                continue
+            else:
+                playworthy_actions.append((action_priority[move.card.name], i))
+        except:
+            import pdb; pdb.set_trace()
+            pass
 
-    return [Sort_List_Of_Tuples(cards_ordered)[0][0]]
+    sorted_actions = sorted(playworthy_actions)
+    return [sorted_actions[-1][1]]
+
 ####################### END PHASE FUNCTIONS ######################
 
 ############################ REACTIONS ###########################
@@ -149,6 +154,8 @@ def provincial_reaction_chapel(decision, state_view):
 
     for i in range(1, len(decision.moves)):
         move = decision.moves[i]
+        if not hasattr(move, 'card'):
+            import pdb; pdb.set_trace()
         if hasattr(move, 'card') and \
             move.card.name == 'Chapel' or \
             (move.card.name == 'Estate' and state_view.supply_piles['Province'].qty > 2) or \
@@ -170,32 +177,31 @@ def provincial_reaction_bureaucrat(decision):
 
 # reaction for card militia
 def provincial_reaction_militia(decision):
-    # no cards to discard
-    if len(decision.moves) == 1:
-        return [0]
+    ''' This function creates a list of tuples (discard priority, card index in
+    decision.moves), sorts that list by discard priority (descending sort), and
+    then returns the indices of all but the first 3 cards in the sorted list. 
+    '''
+    def dp(card):
+        if card.name in discard_priority:
+            return discard_priority[card.name]
+        else:
+            return -100 - card.cost
 
-    # rank cards
-    cards_ordered = []
-    for i in range(1, len(decision.moves)):
-        move = decision.moves[i]
-        if hasattr(move, 'card') and move.card.name in discard_priority:
-            cards_ordered.append((i, discard_priority[move.card.name]))
-        elif hasattr(move, 'card'):
-            cards_ordered.append((i, -100 - move.card.cost)) # ranking provincial uses
-
-    return [Sort_List_Of_Tuples(cards_ordered)[0][0]]
+    tuplist = [(dp(move.card), i) for i, move in enumerate(decision.moves)]
+    card_indices = [tup[1] for tup in sorted(tuplist)[3:]]
+    return card_indices
 
 # reaction for card throne room
-def provincial_reaction_throne_room(decision):
-    return provincial_action_phase(decision) # always use action policy here
+def provincial_reaction_throne_room(decision, state_view):
+    return provincial_action_phase(state_view, decision) # always use action policy here
 
 # reaction for card library
 def provincial_reaction_library(state_view):
     # no actions imply no point in taking action card
     if state_view.player.actions == 0:
-        return False
+        return [1] # second index is NoMove
     else:
-        return True # otherwise take the action card (independent of what it is)
+        return [0] # first index is YesMove # otherwise take the action card (independent of what it is)
 
 # reaction for card mine
 def provincial_reaction_mine(decision, state_view):
@@ -207,9 +213,9 @@ def provincial_reaction_mine(decision, state_view):
     cards_ordered = []
     for i in range(1, len(decision.moves)):
         move = decision.moves[i]
-        if hasattr(move, 'card') and move.card.name == 'Silver' and state_view.supply_piles['gold'].qty > 0:
+        if hasattr(move, 'card') and move.card.name == 'Silver' and state_view.supply_piles['Gold'].qty > 0:
             cards_ordered.append((i, mine_priority[move.card.name]))
-        elif hasattr(move, 'card') and move.card.name == 'Copper' and state_view.supply_piles['silver'].qty > 0:
+        elif hasattr(move, 'card') and move.card.name == 'Copper' and state_view.supply_piles['Silver'].qty > 0:
             cards_ordered.append((i, mine_priority[move.card.name]))
         elif hasattr(move, 'card'):
             cards_ordered.append((i, -1*move.card.cost)) # ranking provincial uses
@@ -227,13 +233,14 @@ class ProvincialAgent(Agent):
         ###################### END DEFAULT #######################
 
         ######################## REACTIONS #######################
+        # TODO: comparing decision prompts to hardcoded text is brittle; refactor this
         # cellar is played
         if decision.prompt == 'Discard as many cards as you would like to draw.':
             return provincial_reaction_cellar(decision)
 
         # chapel is played
         if decision.prompt == 'Trash up to 4 cards.':
-            return provincial_reaction_chapel(decision)
+            return provincial_reaction_chapel(decision, state_view)
 
         # moat is handeled by global trigger
 
@@ -251,15 +258,17 @@ class ProvincialAgent(Agent):
 
         # throneroom is played
         if decision.prompt == 'Select a card to play twice.':
-            return provincial_reaction_throne_room(decision)
+            return provincial_reaction_throne_room(decision, state_view)
 
         # library is played
-        if decision.prompt == 'Library draws':
+        if 'Library draws' in decision.prompt:
             return provincial_reaction_library(state_view)
 
         # mine is played
         if decision.prompt == 'Choose a Treasure to upgrade.':
-            return provincial_reaction_mine(decision)
+            return provincial_reaction_mine(decision, state_view)
+        
+        # TODO: add in a provincial_moneylender_choice function
 
         # chancelor is removed
         # feast is removed
@@ -274,8 +283,7 @@ class ProvincialAgent(Agent):
             return provincial_buy_menu_big_money(decision, state_view, state_view.player.coins)
 
         if state_view.player.phase == TurnPhase.ACTION_PHASE:
-            provincial_reaction_chapel(decision)
-            return provincial_action_phase(decision)
+            return provincial_action_phase(state_view, decision)
         ###################### END PHASES ########################
 
         return [0] # always the default action

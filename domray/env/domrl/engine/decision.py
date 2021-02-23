@@ -9,13 +9,16 @@ def process_decision(agent, decision, state):
 
     # Get decision from agent, giving them the view of the state.
     move_indices = agent.policy(decision, state_view)
-
+    if isinstance(move_indices, bool):
+        import pdb; pdb.set_trace()
+        pass
     # TODO(benzyx): Enforce that the indices are not repeated.
     if decision.optional:
         if len(move_indices) > decision.num_select:
             raise Exception("Decision election error! Too many moves selected.")
     else:
         if len(move_indices) != decision.num_select:
+            import pdb; pdb.set_trace()
             raise Exception("Decision election error! Number of moves selected not correct.")
 
     for idx in move_indices:
@@ -220,7 +223,7 @@ class ChoosePileDecision(Decision):
 
 def boolean_choice(state, player, prompt, yes_prompt="Yes", no_prompt="No"):
     decision = BooleanDecision(state, player, prompt, yes_prompt, no_prompt)
-    game.process_decision(player.agent, decision, state)
+    process_decision(player.agent, decision, state)
     return decision.value
 
 

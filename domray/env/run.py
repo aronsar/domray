@@ -7,6 +7,7 @@ from ray import tune
 from ray.tune import run_experiments, register_env
 from ray.rllib.models import ModelCatalog
 from domrl.agents.provincial_agent import ProvincialAgent
+from domrl.engine.supply import BasicPiles
 from domrl.engine.cards.base import BaseKingdom
 import argparse
 
@@ -27,12 +28,27 @@ class DomrayModel(TorchModelV2, nn.Module):
         return torch.reshape(self.torch_sub_model.value_function(), [-1])
 
 
+
+allowed_cards = ['Cellar', 'Chapel', 'Moat', 'Village', \
+    'Bureaucrat', 'Gardens', 'Militia', \
+    'Smithy', 'Throne Room', 'Council Room', 'Festival', \
+    'Laboratory', 'Library', 'Market', 'Mine', 'Witch'] 
+    # Harbinger, Merchant, Vassal, Poacher, Bandit, 
+    # Sentry, Artisan, Workshop, Remodel, Moneylender
+
+preset_cards = ['Village', 'Bureaucrat', 'Smithy', 'Witch', 'Militia', 'Moat', 'Library', 'Market', 'Mine', 'Council Room']
+
+preset_supply = {k:v for k,v in BasicPiles.items()}
+for card in preset_cards:
+    preset_supply[card] = BaseKingdom[card]
+
+
 env_config = {
     'agents': [ProvincialAgent(), ProvincialAgent()],
     'players': None,
-    'preset_supply': None,
+    'preset_supply': preset_supply,
     'kingdoms': [BaseKingdom],
-    'verbose': True
+    'verbose': False
 }
 
 
@@ -51,7 +67,7 @@ if __name__ == "__main__":
     config = {
         "env": DominionEnv,
         "env_config": env_config,
-        "num_gpus": 0,
+        "num_gpus": 1,
         "model": {
             "custom_model": "domraymodel",
             "vf_share_layers": True,
