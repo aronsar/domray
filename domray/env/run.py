@@ -1,7 +1,11 @@
 import ray
+import torch
+import numpy as np
+from gym.spaces import Box
 from env import DominionEnv
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
+from ray.rllib.utils.torch_ops import FLOAT_MIN, FLOAT_MAX
 from ray.rllib.utils.framework import try_import_torch
 from ray import tune
 from ray.tune import run_experiments, register_env
@@ -13,16 +17,25 @@ import argparse
 
 torch, nn = try_import_torch()
 
+
+# for available actions check out:
+# https://github.com/ray-project/ray/blob/739f6539836610e3fbaadd3cf9ad7fb9ae1d79f9/rllib/examples/models/parametric_actions_model.py
 class DomrayModel(TorchModelV2, nn.Module):
     def __init__(self, obs_space, action_space, num_outputs, model_config, name):
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
-        self.torch_sub_model = TorchFC(obs_space, action_space, num_outputs, model_config, name)
+        true_obs_space = Box(low=0.0, high=55.0, shape=(100,), dtype=np.float32)
+        self.fc_model = TorchFC(true_obs_space, action_space, num_outputs, model_config, name)
 
     def forward(self, input_dict, state, seq_lens):
-        input_dict["obs"] = input_dict["obs"].float()
-        fc_out, _ = self.torch_sub_model(input_dict, state, seq_lens)
-        return fc_out, []
+        action_mask = input_dict["obs"]["action_mask"]
+        
+        action_logits, _ = self.fc_model({
+            "obs": input_dict["obs"]["state"] # NOTE: maybe need to add .float()?
+        })
+        
+        inf_mask = torch.clamp(torch.log(action_mask), FLOAT_MIN, FLOAT_MAX)
+        return action_logits + inf_mask, []
 
     def value_function(self):
         return torch.reshape(self.torch_sub_model.value_function(), [-1])
@@ -70,6 +83,7 @@ if __name__ == "__main__":
         "num_gpus": 1,
         "model": {
             "custom_model": "domraymodel",
+            "fcnet_hiddens": [256, 256, 34], #TODO: 34 is the action space size, refactor
             "vf_share_layers": True,
         },
         "framework": "torch",
