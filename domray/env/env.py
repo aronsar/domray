@@ -2,7 +2,6 @@ import numpy as np
 import copy
 from collections import Counter
 from ray import rllib
-import gym
 from gym.spaces import Box, Dict, Discrete
 
 import domrl.engine.state as st
@@ -15,8 +14,9 @@ from domrl.engine.decision import EndBuyPhase
 # TODO: find_card_in_decision should be put in a utility.py file or something since it is shared across multiple agents
 from domrl.agents.provincial_agent import find_card_in_decision
 
+from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
-class DominionEnv(gym.Env):
+class DominionEnv(MultiAgentEnv):
     ''' Currently, I reimplement running games of dominion, but it would be
     nice if I didn't have to. I don't like to copy code.
     '''
@@ -78,9 +78,11 @@ class DominionEnv(gym.Env):
         info = {} # TODO: add something like dict(state_view)
         return np.array(obs, dtype=np.float32), info
 
-    def _run_until_next_buy(self, action):
+    def _run_until_next_buy(self, action_dict):
         # TODO: action cards that gain you stuff don't work yet
-        if action:
+        if action_dict:
+            player_name = "player_{}".format(self.state.current_player_idx+1)
+            action = action_dict[player_name] 
             # NOTE: we assume the action is an integer that indexes into
             # self.kingdom_and_basic_cards
             player = self.state.current_player
@@ -167,21 +169,26 @@ class DominionEnv(gym.Env):
                                   preset_supply=preset_supply,
                                   kingdoms=self.config['kingdoms'], 
                                   verbose=self.config['verbose'])
-        self._run_until_next_buy(action=None)
+        self._run_until_next_buy(action_dict=None)
         obs, _ = self._generate_state_rep()
         obs = {
             'action_mask': self._action_mask(),
             'state': obs
         }
+
+        player = "player_{}".format(self.state.current_player_idx+1)
+        obs = {player: obs}
         return obs
 
-    def step(self, action):
+    def step(self, action_dict):
         # TODO: refactor all this logging/stats printing code elsewhere
-
         # NOTE: for now, we are guaranteed to be in the buy phase (or gain action)
-        self._run_until_next_buy(action)
+        self._run_until_next_buy(action_dict)
         obs, info = self._generate_state_rep()
-        
+
+        # TODO: "player_name" should be a @property of self.state
+        player = "player_{}".format(self.state.current_player_idx+1)
+        #opponent = "player_{}".format(self.state.next_player_idx(self.state.current_player_idx)+1)
         done = self.state.is_game_over()
         if done:
             self._print_stats()            
@@ -189,18 +196,33 @@ class DominionEnv(gym.Env):
             if len(winners) == 0:
                 raise Exception("No winners despite the end of game")
             if len(winners) > 1: # TODO: figure out if ties should give any reward
-                reward = 0.0
+                player_reward = 0.0
+                #opponent_reward = 0.0
             elif self.state.current_player in winners:
-                reward = 1.0
+                player_reward = 1.0
+                #opponent_reward = -1.0
             else:
-                reward = -1.0
+                player_reward = -1.0
+                #opponent_reward = 1.0
+            
+            # NOTE: assumption that when done, must return reward for all agents
+            reward = {
+                player: player_reward,
+                #opponent: opponent_reward
+            }
         else:
-            reward = 0.0
-        
+            reward = {
+                player: 0.0
+            }
+
         obs = {
             'action_mask': self._action_mask(),
             'state': obs
         }
+
+        obs = {player: obs}
+        done = {player: done, "__all__": done}
+        info = {}
         return obs, reward, done, info
 
         '''

@@ -25,16 +25,17 @@ class DomrayModel(TorchModelV2, nn.Module):
         TorchModelV2.__init__(self, obs_space, action_space, num_outputs, model_config, name)
         nn.Module.__init__(self)
         true_obs_space = Box(low=0.0, high=55.0, shape=(100,), dtype=np.float32)
-        self.fc_model = TorchFC(true_obs_space, action_space, num_outputs, model_config, name)
+        self.torch_sub_model = TorchFC(true_obs_space, action_space, num_outputs, model_config, name)
 
     def forward(self, input_dict, state, seq_lens):
         action_mask = input_dict["obs"]["action_mask"]
         
-        action_logits, _ = self.fc_model({
+        action_logits, _ = self.torch_sub_model({
             "obs": input_dict["obs"]["state"] # NOTE: maybe need to add .float()?
         })
         
         inf_mask = torch.clamp(torch.log(action_mask), FLOAT_MIN, FLOAT_MAX)
+        #import pdb; pdb.set_trace()
         return action_logits + inf_mask, []
 
     def value_function(self):
@@ -87,6 +88,9 @@ if __name__ == "__main__":
             "vf_share_layers": True,
         },
         "framework": "torch",
+        "dueling": False,
+        "hiddens": [],
+        "double_q": False,
     }
 
     stop = {
