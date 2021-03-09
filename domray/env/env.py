@@ -91,11 +91,15 @@ class DominionEnv(MultiAgentEnv):
                 idx = 0
                 # TODO: refactor stats logging so it meshes with existing logging
                 player.stats['wasted_coins'].append(player.coins)
+                player.stats['wasted_buys'].append(player.buys)
+                assert player.buys != 0
             else:
                 card_name = self.kingdom_and_basic_cards[action]
                 idx = find_card_in_decision(decision, card_name)[0]
-                if idx == 0:
-                    import pdb; pdb.set_trace()
+                player.stats['total_buys'] += 1
+                assert idx != 0
+                if player.buys == 1:
+                    player.stats['wasted_buys'].append(0)
             
             decision.moves[idx].do(self.state)
 
@@ -111,7 +115,14 @@ class DominionEnv(MultiAgentEnv):
             elif player.phase == TurnPhase.END_PHASE:
                 decision = dec.EndPhaseDecision(player)
             elif player.phase == TurnPhase.BUY_PHASE:
-                return
+                # TODO: these 4 lines are a workaround. The original behavior
+                # was that the engine would ask the policy for a buy decision
+                # even if there were 0 buys left, but this is unnecessary.
+                # Refactor this on the engine side.
+                if player.buys == 0:
+                    decision = dec.BuyPhaseDecision(self.state, player)
+                else:
+                    return
             else:
                 raise Exception("TurnContext: Unknown current player phase")
             
@@ -124,8 +135,14 @@ class DominionEnv(MultiAgentEnv):
 
         def print_buy_stats(players):
             for player in players:
+                b = player.stats['total_buys']
+                print('Player {} bought {} cards'.format(player.idx+1, b))
                 w = player.stats['wasted_coins']
-                print('Player {} wasted (min, avg, max, num) coins: ({}, {:.1f}, {})'.format(player.idx+1, min(w), sum(w)/len(w), max(w), len(w)))
+                print('Player {} wasted (min, avg, max, tot) coins: ({}, {:.1f}, {}, {})' \
+                        .format(player.idx+1, min(w), sum(w)/len(w), max(w), sum(w)))
+                wb = player.stats['wasted_buys']
+                print('Player {} wasted (min, avg, max, tot) buys: ({}, {:.1f}, {}, {})' \
+                        .format(player.idx+1, min(wb), sum(wb)/len(wb), max(wb), sum(wb)))
 
         def print_deck_comps(players):
             for player in players:
@@ -184,11 +201,11 @@ class DominionEnv(MultiAgentEnv):
         # TODO: refactor all this logging/stats printing code elsewhere
         # NOTE: for now, we are guaranteed to be in the buy phase (or gain action)
         self._run_until_next_buy(action_dict)
-        obs, info = self._generate_state_rep()
+        state, info = self._generate_state_rep()
 
         # TODO: "player_name" should be a @property of self.state
-        player = "player_{}".format(self.state.current_player_idx+1)
-        #opponent = "player_{}".format(self.state.next_player_idx(self.state.current_player_idx)+1)
+        player_name = "player_{}".format(self.state.current_player_idx+1)
+        opponent_name = "player_{}".format(self.state.next_player_idx(self.state.current_player_idx)+1)
         done = self.state.is_game_over()
         if done:
             self._print_stats()            
@@ -197,33 +214,31 @@ class DominionEnv(MultiAgentEnv):
                 raise Exception("No winners despite the end of game")
             if len(winners) > 1: # TODO: figure out if ties should give any reward
                 player_reward = 0.0
-                #opponent_reward = 0.0
+                opponent_reward = 0.0
             elif self.state.current_player in winners:
                 player_reward = 1.0
-                #opponent_reward = -1.0
+                opponent_reward = -1.0
             else:
                 player_reward = -1.0
-                #opponent_reward = 1.0
+                opponent_reward = 1.0
             
-            # NOTE: assumption that when done, must return reward for all agents
-            reward = {
-                player: player_reward,
-                #opponent: opponent_reward
-            }
+            # empty obs for all agents
+            # rewards of +1/-1 for all agents
+            # "__all__" set to true
+            empty_obs = {'action_mask': np.zeros(34), 'state': np.zeros(100)} # TODO: hella jank
+            obs = {player_name: empty_obs, opponent_name: empty_obs}
+            rewards = {player_name: player_reward, opponent_name: opponent_reward}
+            dones = {player_name: True, opponent_name: True, "__all__": True}
+
         else:
-            reward = {
-                player: 0.0
-            }
+            # nonempty obs only for active player
+            # reward only for active player
+            # "__all__" set to false
+            obs = {player_name: {'action_mask': self._action_mask(), 'state': state}}
+            rewards = {player_name: 0.0}
+            dones = {player_name: False, "__all__": False}
 
-        obs = {
-            'action_mask': self._action_mask(),
-            'state': obs
-        }
-
-        obs = {player: obs}
-        done = {player: done, "__all__": done}
-        info = {}
-        return obs, reward, done, info
+        return obs, rewards, dones, info
 
         '''
         # I guess it would be nice if there was some sort of callback mechanic

@@ -38,7 +38,7 @@ class Player(object):
         self.play_area = play_area or []
         self.phase = phase or TurnPhase.END_PHASE
         self.immune_to_attack = False
-        self.stats = {'wasted_coins': []}
+        self.stats = {'wasted_coins': [], 'wasted_buys': [], 'total_buys': 0}
         # TODO: I don't think this is necessary.
         self.previous_deck = []
 

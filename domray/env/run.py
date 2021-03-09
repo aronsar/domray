@@ -82,6 +82,7 @@ if __name__ == "__main__":
         "env": DominionEnv,
         "env_config": env_config,
         "num_gpus": 1,
+        "train_batch_size": 200,
         "model": {
             "custom_model": "domraymodel",
             "fcnet_hiddens": [256, 256, 34], #TODO: 34 is the action space size, refactor
@@ -91,6 +92,9 @@ if __name__ == "__main__":
         "dueling": False,
         "hiddens": [],
         "double_q": False,
+        "num_workers": 2,
+        "train_batch_size": 32,
+
     }
 
     stop = {
@@ -98,25 +102,3 @@ if __name__ == "__main__":
     }
 
     results = tune.run("DQN", config=config, stop=stop)
-
-
-    '''
-    run_experiments({
-        "dqn_dom": {
-            "run": "DQN",
-            "env": "dominion",
-            "stop": {
-                "training_iteration": args.num_iters,
-            },
-            "config": {
-                "num_workers": args.num_workers,
-                #"observation_filter": "NoFilter",  # breaks the action mask
-                #"vf_share_layers": True,  # don't create a separate value model
-                "env_config": env_config,
-                "model": {
-                    "custom_model": "domraymodel",
-                },
-            },
-        },
-     })
-     '''
