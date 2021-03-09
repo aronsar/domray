@@ -223,7 +223,7 @@ class ChoosePileDecision(Decision):
 
 def boolean_choice(state, player, prompt, yes_prompt="Yes", no_prompt="No"):
     decision = BooleanDecision(state, player, prompt, yes_prompt, no_prompt)
-    process_decision(player.agent, decision, state)
+    process_decision(player.agent, decision, state) # fixed bug here
     return decision.value
 
 
