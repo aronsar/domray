@@ -206,20 +206,27 @@ def provincial_reaction_bureaucrat(decision):
     return [1] # provincial always just chooses the first victory card
 
 # reaction for card militia
-def provincial_reaction_militia(decision):
-    ''' This function creates a list of tuples (discard priority, card index in
-    decision.moves), sorts that list by discard priority (descending sort), and
-    then returns the indices of all but the first 3 cards in the sorted list. 
-    '''
-    def dp(card):
-        if card.name in discard_priority:
-            return discard_priority[card.name]
-        else:
-            return -100 - card.cost
+def provincial_reaction_militia(state_view, decision):
+    # no cards to discard
+    if len(decision.moves) == 1:
+        return [0]
 
-    tuplist = [(dp(move.card), i) for i, move in enumerate(decision.moves)]
-    card_indices = [tup[1] for tup in sorted(tuplist)[3:]]
-    return card_indices
+    # rank cards
+    cards_ordered = []
+    for i in range(1, len(decision.moves)):
+        move = decision.moves[i]
+        if hasattr(move, 'card') and move.card.name in discard_priority:
+            cards_ordered.append((i, discard_priority[move.card.name]))
+        elif hasattr(move, 'card'):
+            cards_ordered.append((i, -100 - move.card.cost)) # ranking provincial uses
+
+    cards_ordered = Sort_List_Of_Tuples(cards_ordered)
+    card_to_discard = []
+    num_to_discard = len(decision.moves) - 3
+    for index in range(num_to_discard):
+        card_to_discard.append(cards_ordered[index][0])
+
+    return card_to_discard
 
 # reaction for card throne room
 def provincial_reaction_throne_room(decision, state_view):
@@ -251,8 +258,9 @@ def provincial_reaction_mine_trash_card(decision, state_view):
 
 class ProvincialAgent(Agent):
     def __init__(self, buy_menu):
+        copy = [arg for arg in buy_menu]
         ######################## BUY MENU ########################
-        self.buy_menu = buy_menu
+        self.buy_menu = copy
         ######################## BUY MENU ########################
 
     def policy(self, decision, state_view):
@@ -281,7 +289,7 @@ class ProvincialAgent(Agent):
 
         # militia is played
         if decision.prompt == 'Discard down to 3 cards.':
-            return provincial_reaction_militia(decision)
+            return provincial_reaction_militia(state_view, decision)
 
         # throneroom is played
         if decision.prompt == 'Select a card to play twice.':
