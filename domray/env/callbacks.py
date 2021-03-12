@@ -16,10 +16,26 @@ class DomCallbacks(DefaultCallbacks):
     def on_episode_end(self, *, worker: RolloutWorker, base_env: BaseEnv,
                        policies: Dict[str, Policy], episode: MultiAgentEpisode,
                        env_index: int, **kwargs):
-        info = episode.last_info_for()
-        import pdb; pdb.set_trace()
-        episode.custom_metrics["game_len"] = info["player_1"]["num_turns"]
+        info = episode._agent_to_last_info
+        episode.hist_data['game_len'] = [max(info['player_1']['num_turns'], info['player_2']['num_turns'])]
+        for player in info:
+            for metric in info[player]:
+                if isinstance(info[player][metric], dict):
+                    for m in info[player][metric]:
+                        key = player + '_' + metric + '_' + m
+                        episode.hist_data[key] = [info[player][metric][m]]
+                else:
+                    key = player + '_' + metric
+                    episode.hist_data[key] = [info[player][metric]]
+        pass
     
     def on_train_result(self, trainer, result):
-        # executes after 'timesteps_per_iteration' (1000) env steps
         pass
+        # executes after 'timesteps_per_iteration' (1000) env steps
+        # if step % check_point_freq == 0:
+            # evaluate against provincial buy menu
+            # save raw games and metrics
+            # 
+            # 
+            # 
+            # 

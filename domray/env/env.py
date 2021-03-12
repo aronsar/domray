@@ -32,6 +32,13 @@ class DominionEnv(MultiAgentEnv):
         self.action_space = Discrete(self.max_avail_actions)
         self.reward_range = (-1.0, 1.0)
         self.episode_stats = {}
+    def debug(self):
+        import pdb; pdb.set_trace()
+        print(self.config)
+
+    def update_config(self, new_config):
+        import pdb; pdb.set_trace()
+        self.config = new_config
 
     def _generate_state_rep(self):
         ''' Very simple state representation; not scalable to multiple players.
@@ -105,7 +112,6 @@ class DominionEnv(MultiAgentEnv):
 
         while not self.state.is_game_over():
             player = self.state.current_player
-            agent = player.agent
             
             # NOTE: if/else statements copied from domrl/engine/game.py:Game.run
             if player.phase == TurnPhase.ACTION_PHASE:
@@ -119,14 +125,14 @@ class DominionEnv(MultiAgentEnv):
                 # was that the engine would ask the policy for a buy decision
                 # even if there were 0 buys left, but this is unnecessary.
                 # Refactor this on the engine side.
-                if player.buys == 0:
+                if player.agent.buy_menu or player.buys == 0:
                     decision = dec.BuyPhaseDecision(self.state, player)
                 else:
                     return
             else:
                 raise Exception("TurnContext: Unknown current player phase")
             
-            dec.process_decision(agent, decision, self.state)
+            dec.process_decision(player.agent, decision, self.state)
 
     def _convert_stats_to_info(self):
         info = {}
@@ -207,7 +213,8 @@ class DominionEnv(MultiAgentEnv):
 
     def reset(self):
         preset_supply = copy.deepcopy(self.config['preset_supply'])
-        self.state = st.GameState(agents=self.config['agents'], 
+        bm = copy.deepcopy(self.config['buy_menus'])
+        self.state = st.GameState(agents=[a(b) for a, b in zip(self.config['agents'], bm)], 
                                   players=self.config['players'], 
                                   preset_supply=preset_supply,
                                   kingdoms=self.config['kingdoms'], 
@@ -252,10 +259,11 @@ class DominionEnv(MultiAgentEnv):
             # rewards of +1/-1 for all agents
             # "__all__" set to true
             empty_obs = {'action_mask': np.zeros(34), 'state': np.zeros(100)} # TODO: hella jank
+            empty_obs['action_mask'][-1] = 1 # hack
             obs = {player_name: empty_obs, opponent_name: empty_obs}
             rewards = {player_name: player_reward, opponent_name: opponent_reward}
             dones = {player_name: True, opponent_name: True, "__all__": True}
-            info = self._convert_stats_to_info()
+            #info = self._convert_stats_to_info()
 
         else:
             # nonempty obs only for active player
@@ -265,6 +273,8 @@ class DominionEnv(MultiAgentEnv):
             rewards = {player_name: 0.0}
             dones = {player_name: False, "__all__": False}
 
+        info = self._convert_stats_to_info()
+        info = {k:info[k] for k in obs}
         return obs, rewards, dones, info
 
         '''

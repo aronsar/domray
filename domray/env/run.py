@@ -4,6 +4,8 @@ import numpy as np
 from gym.spaces import Box
 from env import DominionEnv
 from callbacks import DomCallbacks
+from provincial_vs_provincial import buy_menu_one as preset_menu
+from eval import provincial_eval
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 from ray.rllib.utils.torch_ops import FLOAT_MIN, FLOAT_MAX
@@ -59,18 +61,31 @@ for card in preset_cards:
 
 
 env_config = {
-    'agents': [ProvincialAgent(), ProvincialAgent()],
+    'agents': [ProvincialAgent, ProvincialAgent],
+    'buy_menus': [[],[]],
     'players': None,
     'preset_supply': preset_supply,
     'kingdoms': [BaseKingdom],
     'verbose': False
 }
 
+eval_config = {
+    'env_config': {
+        'agents': [ProvincialAgent, ProvincialAgent],
+        'buy_menus': [[], preset_menu],
+        'players': None,
+        'preset_supply': preset_supply,
+        'kingdoms': [BaseKingdom],
+        'verbose': True
+    }
+}
+
+
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--num-iters", type=int, default=100)
+    parser.add_argument("--num-iters", type=int, default=10)
     parser.add_argument("--num-workers", type=int, default=2)
     args = parser.parse_args()
 
@@ -90,11 +105,20 @@ if __name__ == "__main__":
             "vf_share_layers": True,
         },
         "callbacks": DomCallbacks,
+
+        # Evaluation settings
+        "custom_eval_function": provincial_eval,
+        "evaluation_interval": 2,
+        "evaluation_num_episodes": 5,
+        "evaluation_config": eval_config,
+        "evaluation_num_workers": 1,
+
+        "_use_trajectory_view_api": False,
         "framework": "torch",
         "dueling": False,
         "hiddens": [],
         "double_q": False,
-        "num_workers": 2,
+        "num_workers": 1,
         "train_batch_size": 32,
 
     }
@@ -104,5 +128,7 @@ if __name__ == "__main__":
     }
 
     results = tune.run("DQN", config=config, stop=stop)
+    lr = results.trials[0].last_result
     import pdb; pdb.set_trace()
+
     pass

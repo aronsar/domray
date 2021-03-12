@@ -45,7 +45,7 @@ mine_priority = {
 # https://github.com/techmatt/Provincial/blob/master/DominionDLL/BuyAgenda.cpp#L118
 province_buy_threshold = 4
 duchy_buy_threshold = 3
-estate_buy_threshold = 0 ### provincial has this as 2 but I think that's terrible
+estate_buy_threshold = 2 ### provincial has this as 2 but I think that's terrible
 ####################### END PRIORITY SCORES ######################
 
 ######################## HELPER FUNCTIONS ########################
@@ -108,38 +108,45 @@ def provincial_buy_menu(decision, state_view, coins, buy_menu):
     return [0] #### buy nothing
 
 # provincial's buy menu for Big Money
-def provincial_buy_menu_big_money(decision, state_view, coins):
-    if coins >= 8:
-        return find_card_in_decision(decision, 'Province')
-    if coins >= 5 and state_view.supply_piles['Province'].qty <= 4:
-        return find_card_in_decision(decision, 'Duchy')
-    if coins >= 1 and state_view.supply_piles['Province'].qty <= 2:
-        return find_card_in_decision(decision, 'Estate')
-    elif coins >= 6:
-        return find_card_in_decision(decision, 'Gold')
-    elif coins >= 3:
-        return find_card_in_decision(decision, 'Silver')
-    else:
-        return [0] #### buy nothing
+#def provincial_buy_menu_big_money(decision, state_view, coins):
+#    if coins >= 8:
+#        return find_card_in_decision(decision, 'Province')
+#    if coins >= 5 and state_view.supply_piles['Province'].qty <= 4:
+#        return find_card_in_decision(decision, 'Duchy')
+#    if coins >= 1 and state_view.supply_piles['Province'].qty <= 2:
+#        return find_card_in_decision(decision, 'Estate')
+#    elif coins >= 6:
+#        return find_card_in_decision(decision, 'Gold')
+#    elif coins >= 3:
+#        return find_card_in_decision(decision, 'Silver')
+#    else:
+#        return [0] #### buy nothing
 
 # provoncial treasure phase strategy
 def provincial_treasure_phase(decision):
     return [len(decision.moves) - 1] # defaults to play all treasures
 
 # provincial action phase strategy
-def provincial_action_phase(state_view, decision):
+def provincial_action_phase(decision, state_view):
     # no actions in hand
     if len(decision.moves) == 1:
         return [0]
 
-    # rank cards
-    cards_ordered = []
-    for i in range(1, len(decision.moves)):
-        move = decision.moves[i]
-        if hasattr(move, 'card') and move.card.name == "Moneylender" and hand_contains("Copper"):
-            cards_ordered.append((i, action_priority[move.card.name]))
-        elif hasattr(move, 'card'):
-            cards_ordered.append((i, action_priority[move.card.name]))
+    playworthy_actions = []
+    for i, move in enumerate(decision.moves):
+        if isinstance(move, EndActionPhase):
+            continue
+        try:
+            if move.card.name == "Moneylender" and not hand_contains(state_view, "Copper"):
+                continue
+            else:
+                playworthy_actions.append((action_priority[move.card.name], i))
+        except:
+            import pdb; pdb.set_trace()
+            pass
+
+    sorted_actions = sorted(playworthy_actions)
+    return [sorted_actions[-1][1]]
 
 ####################### END PHASE FUNCTIONS ######################
 
@@ -318,7 +325,7 @@ class ProvincialAgent(Agent):
             return provincial_buy_menu(decision, state_view, state_view.player.coins, self.buy_menu)
 
         if state_view.player.phase == TurnPhase.ACTION_PHASE:
-            return provincial_action_phase(decision)
+            return provincial_action_phase(decision, state_view)
         ###################### END PHASES ########################
 
         return [0] # always the default action

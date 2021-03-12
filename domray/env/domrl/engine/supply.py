@@ -1,6 +1,6 @@
 import random
 from .card import *
-
+from copy import deepcopy
 
 class SupplyPile(object):
     def __init__(self, card, qty, buyable=True):
@@ -30,7 +30,7 @@ def choose_supply_from_kingdoms(kingdoms):
     keys = total_piles.keys()
     supply_keys = random.sample(keys, 10)
     
-    supply_piles = {k:v for k,v in BasicPiles.items()}
+    supply_piles = deepcopy(BasicPiles)
 
     for key in supply_keys:
         supply_piles[key] = total_piles[key]

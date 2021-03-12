@@ -5,13 +5,6 @@ from domrl.agents.provincial_agent import ProvincialAgent
 import domrl.engine.cards.base as base
 from copy import deepcopy
 
-def get_card_set(cards):
-    dict = {}
-    for key, val in base.BaseKingdom.items():
-        if key in cards:
-            dict[key] = deepcopy(val)
-    return dict
-
 buy_menu_one = [('Gold', 6, 99), ('Witch', 5, 1), ('Council Room', 5, 5), ('Militia', 4, 1), \
             ('Silver', 3, 1), ('Village', 3, 5), ('Silver', 3, 99)]
 
@@ -21,21 +14,23 @@ buy_menu_two = [('Gold', 6, 99), ('Mine', 5, 1), ('Silver', 3, 2), ('Library', 5
 
 buy_menu_big_money = [('Gold', 6, 99), ('Silver', 3, 99)]
 
+card_set = ["Library", "Mine", "Village", "Militia", "Council Room", "Witch", "Cellar", \
+            "Gardens", "Artisan", "Sentry"]
+
 if __name__ == '__main__':
     """
     Run instances of the game.
     """
-    num_games = 50
+    num_games = 100
     provincial_one_win_count = 0
     provincial_two_win_count = 0
     num_ties = 0
-    for i in range(0, num_games):
-        card_set = get_card_set(["Library", "Mine", "Village", "Militia", "Council Room", "Witch", "Cellar", \
-                                "Gardens", "Artisan", "Sentry"])
+    for _ in range(num_games):
+        kingdoms = [{card:deepcopy(supply_pile) for card,supply_pile in base.BaseKingdom.items() if card in card_set}]
 
         game = Game(
-            agents=[ProvincialAgent(buy_menu = buy_menu_two), ProvincialAgent(buy_menu = buy_menu_big_money)],
-            kingdoms=[card_set],
+            agents=[ProvincialAgent(buy_menu = buy_menu_one), ProvincialAgent(buy_menu = buy_menu_two)],
+            kingdoms=kingdoms
         )
         state = game.run()
         if state.current_player.total_vp() > state.other_players(state.current_player)[0].total_vp():
