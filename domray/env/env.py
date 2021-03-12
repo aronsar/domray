@@ -31,7 +31,7 @@ class DominionEnv(MultiAgentEnv):
         })
         self.action_space = Discrete(self.max_avail_actions)
         self.reward_range = (-1.0, 1.0)
-
+        self.episode_stats = {}
 
     def _generate_state_rep(self):
         ''' Very simple state representation; not scalable to multiple players.
@@ -74,7 +74,7 @@ class DominionEnv(MultiAgentEnv):
         
         obs = player_obs + opponent_obs + supply_obs + [num_empty_piles]
          
-        state_view = stv.StateView(self.state, player)
+        #state_view = stv.StateView(self.state, player)
         info = {} # TODO: add something like dict(state_view)
         return np.array(obs, dtype=np.float32), info
 
@@ -128,6 +128,31 @@ class DominionEnv(MultiAgentEnv):
             
             dec.process_decision(agent, decision, self.state)
 
+    def _convert_stats_to_info(self):
+        info = {}
+        for player in self.state.players:
+            playername = 'player_{}'.format(player.idx+1)
+            wc = player.stats['wasted_coins'] or [0]
+            wb = player.stats['wasted_buys'] or [0]
+            info[playername] = {
+                'num_turns': self.state.turn,
+                'score': player.total_vp(),
+                'total_buys': player.stats['total_buys'], 
+                'wasted_buys':  {
+                    'min': min(wb),
+                    'avg': sum(wb)/len(wb),
+                    'max': max(wb),
+                    'tot': sum(wb)
+                },
+                'wasted_coins':  {
+                    'min': min(wc),
+                    'avg': sum(wc)/len(wc),
+                    'max': max(wc),
+                    'tot': sum(wc)
+                }
+            }
+        return info
+
     def _print_stats(self):
         def print_scores(players):
             for player in players:
@@ -137,10 +162,10 @@ class DominionEnv(MultiAgentEnv):
             for player in players:
                 b = player.stats['total_buys']
                 print('Player {} bought {} cards'.format(player.idx+1, b))
-                w = player.stats['wasted_coins']
+                w = player.stats['wasted_coins'] or [0]
                 print('Player {} wasted (min, avg, max, tot) coins: ({}, {:.1f}, {}, {})' \
                         .format(player.idx+1, min(w), sum(w)/len(w), max(w), sum(w)))
-                wb = player.stats['wasted_buys']
+                wb = player.stats['wasted_buys'] or [0]
                 print('Player {} wasted (min, avg, max, tot) buys: ({}, {:.1f}, {}, {})' \
                         .format(player.idx+1, min(wb), sum(wb)/len(wb), max(wb), sum(wb)))
 
@@ -153,6 +178,7 @@ class DominionEnv(MultiAgentEnv):
                     deck[card.name] += 1
                 for cardname in sorted(deck):
                     print('{:<15}: {}'.format(cardname, deck[cardname]))
+
 
         print('*****************************************************************************')
         print('Number of turns to finish game: ' + str(self.state.turn))
@@ -229,6 +255,7 @@ class DominionEnv(MultiAgentEnv):
             obs = {player_name: empty_obs, opponent_name: empty_obs}
             rewards = {player_name: player_reward, opponent_name: opponent_reward}
             dones = {player_name: True, opponent_name: True, "__all__": True}
+            info = self._convert_stats_to_info()
 
         else:
             # nonempty obs only for active player

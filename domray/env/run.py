@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from gym.spaces import Box
 from env import DominionEnv
+from callbacks import DomCallbacks
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 from ray.rllib.utils.torch_ops import FLOAT_MIN, FLOAT_MAX
@@ -88,6 +89,7 @@ if __name__ == "__main__":
             "fcnet_hiddens": [256, 256, 34], #TODO: 34 is the action space size, refactor
             "vf_share_layers": True,
         },
+        "callbacks": DomCallbacks,
         "framework": "torch",
         "dueling": False,
         "hiddens": [],
@@ -102,3 +104,5 @@ if __name__ == "__main__":
     }
 
     results = tune.run("DQN", config=config, stop=stop)
+    import pdb; pdb.set_trace()
+    pass

@@ -186,16 +186,19 @@ class EventLog(object):
         self.verbose = verbose
 
     def add_event(self, event):
-        self.events.append(event)
+        if self.verbose:
+            self.events.append(event)
 
-        # For now, actually print the contents of the log.
-        if event.event_type == EventType.CONTEXT:
-            self.context_level += event.value
-        else:
-            if self.verbose:
-                for i in range(self.context_level):
-                    print("  ", end="")
-                print(event)
+            # For now, actually print the contents of the log.
+            if event.event_type == EventType.CONTEXT:
+                self.context_level += event.value
+            else:
+                if self.verbose:
+                    for i in range(self.context_level):
+                        print("  ", end="")
+                    print(event)
 
     def hide_for_player(self, player):
-        return [event.obfuscate(player).to_dict() for event in self.events]
+        return []
+        #TODO: the line below is very inefficient (10x slowdown)
+        #return [event.obfuscate(player).to_dict() for event in self.events]
