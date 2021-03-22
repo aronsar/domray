@@ -5,11 +5,11 @@ from gym.spaces import Box
 from env import DominionEnv
 from callbacks import DomCallbacks
 from provincial_vs_provincial import buy_menu_one as preset_menu
-from eval import provincial_eval
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 from ray.rllib.utils.torch_ops import FLOAT_MIN, FLOAT_MAX
 from ray.rllib.utils.framework import try_import_torch
+from ray.rllib.evaluation.metrics import collect_episodes, summarize_episodes
 from ray import tune
 from ray.tune import run_experiments, register_env
 from ray.rllib.models import ModelCatalog
@@ -81,6 +81,33 @@ eval_config = {
 }
 
 
+num_episodes_per_scenario = 20
+eval_metrics = []
+def provincial_eval(trainer, eval_workers):
+    """Evaluates the performance of the domray model by playing it against
+    Provincial using preset buy menus.
+
+    Args:
+        trainer (Trainer): trainer class to evaluate.
+        eval_workers (WorkerSet): evaluation workers.
+
+    Returns:
+        metrics (dict): evaluation metrics dict
+    """
+    global eval_metrics
+
+    for i in range(num_episodes_per_scenario):
+        ray.get([w.sample.remote() for w in eval_workers.remote_workers()])
+        #for worker in eval_workers.remote_workers():
+        #    worker.foreach_env.remote(lambda env: env.debug())
+
+    episodes, _ = collect_episodes(
+        remote_workers=eval_workers.remote_workers(), timeout_seconds=600)
+
+    metrics = summarize_episodes(episodes)
+    eval_metrics.append(metrics)
+
+    return metrics
 
 
 if __name__ == "__main__":
@@ -107,18 +134,18 @@ if __name__ == "__main__":
         "callbacks": DomCallbacks,
 
         # Evaluation settings
-        "custom_eval_function": provincial_eval,
-        "evaluation_interval": 2,
+        "evaluation_interval": 100,
         "evaluation_num_episodes": 5,
         "evaluation_config": eval_config,
         "evaluation_num_workers": 1,
+        "custom_eval_function": provincial_eval,
 
         "_use_trajectory_view_api": False,
         "framework": "torch",
         "dueling": False,
         "hiddens": [],
         "double_q": False,
-        "num_workers": 1,
+        "num_workers": 5,
         "train_batch_size": 32,
 
     }

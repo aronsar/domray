@@ -32,13 +32,10 @@ class DominionEnv(MultiAgentEnv):
         self.action_space = Discrete(self.max_avail_actions)
         self.reward_range = (-1.0, 1.0)
         self.episode_stats = {}
+
     def debug(self):
         import pdb; pdb.set_trace()
         print(self.config)
-
-    def update_config(self, new_config):
-        import pdb; pdb.set_trace()
-        self.config = new_config
 
     def _generate_state_rep(self):
         ''' Very simple state representation; not scalable to multiple players.

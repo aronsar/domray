@@ -89,7 +89,7 @@ class DiscardDownToEffect(effect.Effect):
 
     def run(self, state, player):
         prompt = f"Discard down to {self.num_cards_downto} cards."
-        num_to_discard = len(player.hand) - self.num_cards_downto
+        num_to_discard = max(0, len(player.hand) - self.num_cards_downto)
 
         cards = dec.choose_cards(
             state=state,
