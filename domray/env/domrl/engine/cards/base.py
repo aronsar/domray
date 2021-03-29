@@ -687,17 +687,12 @@ class MoatTrigger(trig.Trigger):
         return event.event_type == log.EventType.PLAY and event.card.is_type(CardType.ATTACK)
 
     def apply(self, event: log.Event, state):
-        # print("now gets here 3")
         for opp in state.other_players(event.player):
-            # print("now gets here 4")
-            # print([card.name for card in opp.hand])
             opp_hand_card_names = [card.name for card in opp.hand]
-            # print('Moat' in opp_hand_card_names)
             if 'Moat' in opp_hand_card_names:
                 result = dec.boolean_choice(state,
                                             opp,
                                             "Reveal Moat to defend attack?")
-                # print("now gets here 5")
                 if result:
                     reveal(state, opp, Moat)
                     opp.immune_to_attack = True

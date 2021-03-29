@@ -89,9 +89,8 @@ def Sort_List_Of_Tuples(tup):
 
 # helper to check if a card is in their hand
 def hand_contains(state_view, card_name):
-    for card in state_view.player.hand:
-        if card == card_name:
-            return True
+    if card_name in state_view.player.hand:
+        return True
     return False
 ###################### END HELPER FUNCTIONS ######################
 
